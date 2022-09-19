@@ -29,6 +29,7 @@ type SourceDir struct {
 	projectName string
 	dir         string
 	isRecursive bool
+	hasChange   bool
 }
 
 func NewSourceDir(projectName string, path string, isRecursive bool) *SourceDir {
@@ -38,19 +39,19 @@ func NewSourceDir(projectName string, path string, isRecursive bool) *SourceDir 
 	return &SourceDir{projectName: projectName, dir: path, isRecursive: isRecursive}
 }
 
-func (d *SourceDir) Fix(options ...SourceFileOption) error {
+func (d *SourceDir) Fix(options ...SourceFileOption) (hasChange bool, err error) {
 	var ok bool
 	d.dir, ok = IsDir(d.dir)
 	if !ok {
-		return ErrPathIsNotDir
+		return false, ErrPathIsNotDir
 	}
 
-	err := filepath.WalkDir(d.dir, d.walk(options...))
+	err = filepath.WalkDir(d.dir, d.walk(options...))
 	if err != nil {
-		return errors.WithStack(err)
+		return false, errors.WithStack(err)
 	}
 
-	return nil
+	return d.hasChange, nil
 }
 
 func (d *SourceDir) walk(options ...SourceFileOption) fs.WalkDirFunc {
@@ -64,6 +65,7 @@ func (d *SourceDir) walk(options ...SourceFileOption) fs.WalkDirFunc {
 				return errors.WithStack(err)
 			}
 			if hasChange {
+				d.hasChange = true
 				if err := ioutil.WriteFile(path, content, 0644); err != nil {
 					log.Fatalf("failed to write fixed result to file(%s): %+v", path, errors.WithStack(err))
 				}
